@@ -21,6 +21,7 @@ import { AccountingManager } from './components/accounting/AccountingManager';
 import ConfigurationManager from './components/settings/ConfigurationManager';
 import { TrialBanner } from './components/shared/TrialBanner';
 import { SubscriptionRequired } from './components/subscription/SubscriptionRequired';
+import { UserProfile } from './components/profile/UserProfile';
 
 function AppContent() {
   const { user, profile, loading, refreshProfile } = useAuth();
@@ -92,6 +93,8 @@ function AppContent() {
         return <InventoryManager />;
       case 'configuration':
         return <ConfigurationManager />;
+      case 'profile':
+        return <UserProfile />;
       default:
         return <Dashboard />;
     }

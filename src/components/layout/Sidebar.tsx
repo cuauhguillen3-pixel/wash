@@ -107,11 +107,27 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
       >
         <div className="h-full flex flex-col">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Carwash Suite</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{profile?.full_name}</p>
-            <span className={`inline-block mt-2 px-3 py-1 text-xs font-medium rounded-full ${profile ? getRoleColor(profile.role) : ''}`}>
-              {profile ? getRoleLabel(profile.role) : ''}
-            </span>
+            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-4">Carwash Suite</h1>
+            
+            <div className="group p-2 -mx-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+              <button
+                onClick={() => handleNavigate('profile')}
+                className="w-full flex items-center gap-3 text-left focus:outline-none"
+                title="Ver mi perfil"
+              >
+                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-lg flex-shrink-0">
+                  {profile?.full_name?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    {profile?.full_name}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {profile ? getRoleLabel(profile.role) : ''}
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
 
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
