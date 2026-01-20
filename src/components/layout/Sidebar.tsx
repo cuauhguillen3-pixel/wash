@@ -36,6 +36,7 @@ interface SidebarProps {
 export function Sidebar({ currentView, onNavigate }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState(false);
   const { profile, signOut, hasPermission } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -133,32 +134,29 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
         `}
       >
         <div className="h-full flex flex-col">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <div className="mb-6 flex justify-center">
-              {logoUrl ? (
+          <div className="px-0 pt-0 pb-0 border-b border-gray-200 dark:border-gray-700 flex flex-col items-center overflow-hidden">
+            <div className="w-full flex justify-center items-center">
+              {!logoError ? (
                 <img 
-                  src={logoUrl} 
-                  alt="Logo" 
-                  className="max-h-16 w-auto object-contain"
+                  src={logoUrl || "/logo.png"} 
+                  alt="Carwash Suite" 
+                  className="w-full h-auto max-h-48 object-cover transition-all duration-300 hover:scale-105"
+                  onError={() => setLogoError(true)}
                 />
               ) : (
-                <div className="flex items-center gap-3">
-                  <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-2.5 rounded-xl shadow-lg shadow-blue-900/20">
-                    <Car className="w-6 h-6 text-white" />
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <div className="w-20 h-20 rounded-full border-2 border-blue-900 dark:border-blue-400 flex items-center justify-center bg-white dark:bg-gray-800 shrink-0 shadow-lg">
+                    <Car className="w-10 h-10 text-blue-900 dark:text-blue-400" />
                   </div>
-                  <div>
-                    <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                      {(profile as any)?.company?.name || 'Carwash'}
-                    </h1>
-                    <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold tracking-widest uppercase">
-                      PRO SUITE
-                    </p>
+                  <div className="flex flex-col items-center w-full">
+                    <span className="text-3xl font-bold text-blue-900 dark:text-white leading-none tracking-tight">Carwash</span>
+                    <span className="text-2xl font-semibold text-blue-700 dark:text-blue-400 leading-none tracking-wide">Suite</span>
                   </div>
                 </div>
               )}
             </div>
             
-            <div className="group p-2 -mx-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            <div className="w-full group px-2 pb-2 pt-0 -mt-6 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors relative z-10">
               <button
                 onClick={() => handleNavigate('profile')}
                 className="w-full flex items-center gap-3 text-left focus:outline-none"
