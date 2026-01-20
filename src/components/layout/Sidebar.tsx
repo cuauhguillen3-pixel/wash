@@ -21,11 +21,12 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getRoleLabel, getRoleColor } from '../../lib/permissions';
 import type { Permission } from '../../lib/permissions';
+import { supabase } from '../../lib/supabase';
 
 interface SidebarProps {
   currentView: string;
@@ -34,8 +35,34 @@ interface SidebarProps {
 
 export function Sidebar({ currentView, onNavigate }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const { profile, signOut, hasPermission } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    async function fetchLogo() {
+      if (profile?.company_id) {
+        // Primero intentar obtener de company_settings
+        const { data: settingsData } = await supabase
+          .from('company_settings')
+          .select('logo_url')
+          .eq('company_id', profile.company_id)
+          .maybeSingle();
+
+        if (settingsData?.logo_url) {
+          setLogoUrl(settingsData.logo_url);
+          return;
+        }
+
+        // Si no hay en settings, intentar de la tabla companies
+        if ((profile as any)?.company?.logo_url) {
+          setLogoUrl((profile as any).company.logo_url);
+        }
+      }
+    }
+
+    fetchLogo();
+  }, [profile]);
 
   interface MenuItem {
     id: string;
@@ -107,7 +134,29 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
       >
         <div className="h-full flex flex-col">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-4">Carwash Suite</h1>
+            <div className="mb-6 flex justify-center">
+              {logoUrl ? (
+                <img 
+                  src={logoUrl} 
+                  alt="Logo" 
+                  className="max-h-16 w-auto object-contain"
+                />
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-2.5 rounded-xl shadow-lg shadow-blue-900/20">
+                    <Car className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                      {(profile as any)?.company?.name || 'Carwash'}
+                    </h1>
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold tracking-widest uppercase">
+                      PRO SUITE
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
             
             <div className="group p-2 -mx-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
               <button
