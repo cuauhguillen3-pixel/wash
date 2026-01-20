@@ -1,4 +1,5 @@
-import { ArrowRight, Building2, Calendar, Users, TrendingUp, Shield, Zap, CheckCircle } from 'lucide-react';
+import { ArrowRight, Building2, Calendar, Users, TrendingUp, Shield, Zap, CheckCircle, Car } from 'lucide-react';
+import { useState } from 'react';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -6,16 +7,32 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onLogin, onRegister }: LandingPageProps) {
+  const [logoError, setLogoError] = useState(false);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       <nav className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-2">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <Building2 className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">Carwash Suite</span>
+              {!logoError ? (
+                <img 
+                  src="/logo.png" 
+                  alt="Carwash Suite" 
+                  className="h-16 w-auto object-contain"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="bg-blue-900 p-2 rounded-lg">
+                    <Car className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xl font-bold text-gray-900 leading-none">Carwash</span>
+                    <span className="text-sm font-semibold text-blue-600 leading-none">Suite</span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <button
@@ -282,7 +299,7 @@ export function LandingPage({ onLogin, onRegister }: LandingPageProps) {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center gap-2 mb-4 md:mb-0">
               <div className="bg-blue-600 p-2 rounded-lg">
-                <Building2 className="w-5 h-5 text-white" />
+                <Car className="w-5 h-5 text-white" />
               </div>
               <span className="text-lg font-bold">Carwash Suite</span>
             </div>
