@@ -1,0 +1,569 @@
+======================================================================
+INSTRUCCIONES PARA DESPLEGAR EDGE FUNCTIONS MANUALMENTE EN SUPABASE
+======================================================================
+
+Para cada función listada abajo:
+1. Ve a tu proyecto Supabase -> Edge Functions -> Create new Function.
+2. Usa el NOMBRE DE LA FUNCIÓN indicado.
+3. Copia y pega el CÓDIGO COMPLETO en el editor.
+4. Despliega la función.
+
+NOTA: Asegúrate de que las funciones tengan acceso a las variables de entorno necesarias
+(SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY suelen estar disponibles por defecto).
+
+======================================================================
+
+
+----------------------------------------------------------------------
+NOMBRE DE LA FUNCIÓN:  check-expired-companies
+----------------------------------------------------------------------
+
+// --- INICIO DEL CÓDIGO PARA: check-expired-companies ---
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    // Buscar empresas que deben ser desactivadas
+    const { data: expiredCompanies, error: fetchError } = await supabaseAdmin
+      .from('companies')
+      .select('id, name, subscription_end_date')
+      .eq('is_active', true)
+      .eq('auto_deactivate', true)
+      .neq('subscription_type', 'indeterminado')
+      .not('subscription_end_date', 'is', null)
+      .lt('subscription_end_date', new Date().toISOString());
+
+    if (fetchError) throw fetchError;
+
+    if (!expiredCompanies || expiredCompanies.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'No hay empresas expiradas para desactivar',
+          deactivated: [],
+        }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    // Desactivar cada empresa expirada
+    const deactivatedCompanies = [];
+    for (const company of expiredCompanies) {
+      const { error: updateError } = await supabaseAdmin
+        .from('companies')
+        .update({
+          is_active: false,
+          deactivation_reason: 'Suscripción expirada',
+          deactivated_at: new Date().toISOString(),
+        })
+        .eq('id', company.id);
+
+      if (!updateError) {
+        deactivatedCompanies.push({
+          id: company.id,
+          name: company.name,
+          expired_date: company.subscription_end_date,
+        });
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: `${deactivatedCompanies.length} empresas desactivadas por expiración`,
+        deactivated: deactivatedCompanies,
+      }),
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (error: any) {
+    console.error('Error en check-expired-companies:', error);
+    return new Response(
+      JSON.stringify({ error: error.message || "Error verificando empresas expiradas" }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  }
+});
+
+
+// --- FIN DEL CÓDIGO PARA: check-expired-companies ---
+
+
+----------------------------------------------------------------------
+NOMBRE DE LA FUNCIÓN:  create-user
+----------------------------------------------------------------------
+
+// --- INICIO DEL CÓDIGO PARA: create-user ---
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+interface CreateUserRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  role: string;
+  company_id: string | null;
+  branch_id: string | null;
+  phone: string | null;
+  notes: string | null;
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      throw new Error("No authorization header");
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user: adminUser }, error: authError } = await supabaseClient.auth.getUser(token);
+    
+    if (authError || !adminUser) {
+      throw new Error("Unauthorized");
+    }
+
+    const { data: adminProfile, error: profileError } = await supabaseClient
+      .from("user_profiles")
+      .select("role")
+      .eq("id", adminUser.id)
+      .maybeSingle();
+
+    if (profileError || !adminProfile) {
+      throw new Error("Admin profile not found");
+    }
+
+    if (adminProfile.role !== "admin" && adminProfile.role !== "root") {
+      throw new Error("Insufficient permissions");
+    }
+
+    const requestData: CreateUserRequest = await req.json();
+
+    const { data: authData, error: createError } = await supabaseClient.auth.admin.createUser({
+      email: requestData.email,
+      password: requestData.password,
+      email_confirm: true,
+    });
+
+    if (createError) {
+      throw createError;
+    }
+
+    if (!authData.user) {
+      throw new Error("Failed to create user");
+    }
+
+    const { error: profileInsertError } = await supabaseClient
+      .from("user_profiles")
+      .insert({
+        id: authData.user.id,
+        email: requestData.email,
+        full_name: requestData.full_name,
+        role: requestData.role,
+        company_id: requestData.company_id,
+        branch_id: requestData.branch_id,
+        phone: requestData.phone,
+        notes: requestData.notes,
+      });
+
+    if (profileInsertError) {
+      await supabaseClient.auth.admin.deleteUser(authData.user.id);
+      throw profileInsertError;
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, user: authData.user }),
+      {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({ error: error.message || "Error creating user" }),
+      {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  }
+});
+
+
+// --- FIN DEL CÓDIGO PARA: create-user ---
+
+
+----------------------------------------------------------------------
+NOMBRE DE LA FUNCIÓN:  register-company
+----------------------------------------------------------------------
+
+// --- INICIO DEL CÓDIGO PARA: register-company ---
+
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+};
+
+interface CompanyRegistrationRequest {
+  companyData: {
+    name: string;
+    legal_name?: string;
+    tax_id: string;
+    address: string;
+    phone: string;
+    email: string;
+  };
+  adminData: {
+    full_name: string;
+    email: string;
+    phone: string;
+    password: string;
+  };
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    if (req.method !== 'POST') {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        {
+          status: 405,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const { companyData, adminData }: CompanyRegistrationRequest = await req.json();
+
+    // Validate required fields
+    if (!companyData?.name || !companyData?.tax_id || !companyData?.address || 
+        !companyData?.phone || !companyData?.email) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required company fields' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (!adminData?.full_name || !adminData?.email || !adminData?.phone || !adminData?.password) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required admin fields' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Create Supabase client with service role key for admin operations
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+        db: {
+          schema: 'public',
+        },
+        global: {
+          headers: {
+            'x-application-name': 'register-company-function',
+          },
+        },
+      }
+    );
+
+    // Step 1: Create the company
+    const { data: company, error: companyError } = await supabaseAdmin
+      .from('companies')
+      .insert({
+        name: companyData.name,
+        legal_name: companyData.legal_name || null,
+        tax_id: companyData.tax_id,
+        address: companyData.address,
+        phone: companyData.phone,
+        email: companyData.email,
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (companyError) {
+      console.error('Error creating company:', companyError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to create company', details: companyError.message }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Step 2: Create the admin user in auth.users
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: adminData.email,
+      password: adminData.password,
+      email_confirm: true,
+    });
+
+    if (authError) {
+      console.error('Error creating auth user:', authError);
+      // Rollback: delete the company
+      await supabaseAdmin.from('companies').delete().eq('id', company.id);
+      
+      return new Response(
+        JSON.stringify({ error: 'Failed to create admin user', details: authError.message }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Step 3: Create the user profile
+    const { data: profileData, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .insert({
+        id: authUser.user.id,
+        email: adminData.email,
+        full_name: adminData.full_name,
+        phone: adminData.phone,
+        role: 'admin',
+        company_id: company.id,
+        is_active: true,
+      })
+      .select();
+
+    if (profileError) {
+      console.error('Error creating user profile:', profileError);
+      console.error('Profile error details:', JSON.stringify(profileError, null, 2));
+      console.error('Attempted to insert:', {
+        id: authUser.user.id,
+        email: adminData.email,
+        full_name: adminData.full_name,
+        phone: adminData.phone,
+        role: 'admin',
+        company_id: company.id,
+        is_active: true,
+      });
+
+      // Rollback: delete auth user and company
+      await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
+      await supabaseAdmin.from('companies').delete().eq('id', company.id);
+
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to create user profile',
+          details: profileError.message,
+          code: profileError.code,
+          hint: profileError.hint
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Company and admin user created successfully',
+        data: {
+          company: {
+            id: company.id,
+            name: company.name,
+          },
+          admin: {
+            email: adminData.email,
+            full_name: adminData.full_name,
+          },
+        },
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+});
+
+
+// --- FIN DEL CÓDIGO PARA: register-company ---
+
+
+----------------------------------------------------------------------
+NOMBRE DE LA FUNCIÓN:  reset-root-password
+----------------------------------------------------------------------
+
+// --- INICIO DEL CÓDIGO PARA: reset-root-password ---
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    const rootUserId = "2f026c38-c7ec-4f48-a6aa-cb32d42e7e85";
+    const newPassword = "Root2024!";
+
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+      rootUserId,
+      { password: newPassword }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Contraseña actualizada exitosamente",
+        credentials: {
+          email: "root@carwash.com",
+          password: newPassword,
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({ error: error.message || "Error reseteando contraseña" }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  }
+});
+
+// --- FIN DEL CÓDIGO PARA: reset-root-password ---
+
