@@ -12,14 +12,14 @@ export function LandingPage({ onLogin, onRegister }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       <nav className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-auto py-2">
-            <div className="flex items-center gap-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="flex justify-end items-center h-20">
+            <div className="absolute left-4 top-2 md:top-4 z-50">
               {!logoError ? (
                 <img 
                   src="/logo.png" 
                   alt="Carwash Suite" 
-                  className="h-20 md:h-32 w-auto object-contain transition-all duration-300"
+                  className="h-32 md:h-64 w-auto object-contain drop-shadow-xl"
                   onError={() => setLogoError(true)}
                 />
               ) : (
